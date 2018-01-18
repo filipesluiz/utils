@@ -1,0 +1,74 @@
+package filipesluiz.xml;
+
+import java.io.IOException;
+import java.io.StringReader;
+import java.io.StringWriter;
+import java.util.List;
+
+import javax.xml.bind.JAXBContext;
+import javax.xml.bind.JAXBException;
+import javax.xml.bind.Marshaller;
+import javax.xml.parsers.DocumentBuilder;
+import javax.xml.parsers.DocumentBuilderFactory;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
+
+import org.w3c.dom.Document;
+import org.w3c.dom.Node;
+import org.w3c.dom.NodeList;
+import org.xml.sax.InputSource;
+import org.xml.sax.SAXException;
+
+public final class XMLParser {
+	
+	private XMLParser() {}
+
+	public static String convertToXml(List<? extends XML> object) throws JAXBException {
+		if(object == null || object.isEmpty()){
+			return null;
+		}
+		XMLList xml = new XMLList();
+		xml.setElements(object);
+		JAXBContext jaxbContext = JAXBContext.newInstance(xml.getClass());
+	    Marshaller jaxbMarshaller = jaxbContext.createMarshaller();
+	    jaxbMarshaller.setProperty(Marshaller.JAXB_FORMATTED_OUTPUT, true);
+	    
+	    
+	    StringWriter sw = new StringWriter();
+	    jaxbMarshaller.marshal(xml, sw);
+	    return transform(sw);
+	}
+	
+	private static String transform(StringWriter sw){
+		String xml = "";
+		try {
+			DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
+			DocumentBuilder builder;
+			builder = factory.newDocumentBuilder();
+			Document document = builder.parse(new InputSource(new StringReader(sw.toString())));
+			NodeList nodeList = document.getElementsByTagName("element");
+			Node parent = document.getFirstChild();
+			int countByParent = 0;
+			for (int i = 0; i < nodeList.getLength(); i++) {
+				Node node = nodeList.item(i);
+				if(!parent.equals(node.getParentNode()))
+					countByParent = 0;
+				document.renameNode(node, null, "element" + countByParent);
+				parent = node.getParentNode();
+				countByParent++;
+			}
+			
+			TransformerFactory transformerFactory = TransformerFactory.newInstance();
+			sw = new StringWriter();
+			transformerFactory.newTransformer().transform(new DOMSource(document), new StreamResult(sw));
+			xml = sw.toString().replaceAll("<element.* xsi:nil=.*/>", "");
+		} catch (ParserConfigurationException | SAXException | IOException | TransformerException e) {
+			throw new RuntimeException(e);
+		}
+		return xml;
+	}
+	
+}
